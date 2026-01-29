@@ -45,14 +45,21 @@ class DataLoader:
         self.test_size = test_size
         self.random_state = random_state
     
-    def load_from_csv(self, file_path: str, text_column: str, label_column: str) -> Tuple[List[str], List[int]]:
+    def load_from_csv(self, file_path: str, text_column: str, label_column: str, label_mapper=None) -> Tuple[List[str], List[int]]:
         """Load data from CSV file."""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File {file_path} not found")
         
         df = pd.read_csv(file_path)
         texts = df[text_column].tolist()
-        labels = df[label_column].tolist()
+        raw_labels = df[label_column].tolist()
+        
+        # Use the label mapper if provided to convert labels
+        if label_mapper is not None:
+            labels = [label_mapper(label) for label in raw_labels]
+        else:
+            # Assume labels are already in the correct format
+            labels = raw_labels
         
         return texts, labels
     
