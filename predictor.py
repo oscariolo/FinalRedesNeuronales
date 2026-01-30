@@ -1,23 +1,30 @@
 import torch
 import numpy as np
 from typing import List, Dict, Any, Union, Tuple
-from models import load_fine_tuned_model
+from models import load_fine_tuned_model, get_label_meaning, get_standardized_sentiment, STANDARD_LABELS
 
 class Predictor:
     """Prediction utilities for sentiment analysis models."""
     
-    def __init__(self, model, tokenizer, device: str = None):
+    def __init__(self, model, tokenizer, device: str = None, model_name: str = None):
         self.model = model
         self.tokenizer = tokenizer
+        self.model_name = model_name
         self.device = device if device else ('cuda' if torch.cuda.is_available() else 'cpu')
         self.model.to(self.device)
         self.model.eval()
+        
+        # Get label meaning for this model
+        if model_name:
+            self.label_meaning = get_label_meaning(model_name)
+        else:
+            self.label_meaning = {0: "negative", 1: "positive"}  # Default binary
     
     @classmethod
     def from_pretrained_path(cls, model_path: str, model_name: str = None):
         """Load predictor from a fine-tuned model path."""
         model, tokenizer = load_fine_tuned_model(model_path, model_name)
-        return cls(model, tokenizer)
+        return cls(model, tokenizer, model_name=model_name)
     
     def predict_single(self, text: str, threshold: float = 0.5, max_length: int = 128) -> Dict[str, Any]:
         """Predict sentiment for a single text."""
@@ -49,11 +56,20 @@ class Predictor:
             predicted_class = 0
             confidence = probabilities[0].item()
         
+        # Get standardized sentiment
+        if self.model_name:
+            sentiment_label, sentiment_score = get_standardized_sentiment(self.model_name, predicted_class)
+        else:
+            sentiment_label = self.label_meaning.get(predicted_class, f"class_{predicted_class}")
+            sentiment_score = STANDARD_LABELS.get(sentiment_label, 0)
+        
         return {
             'predicted_class': predicted_class,
             'confidence': confidence,
             'probabilities': probabilities.cpu().tolist(),
-            'text': text
+            'text': text,
+            'sentiment_label': sentiment_label,
+            'sentiment_score': sentiment_score
         }
     
     def predict_batch(self, texts: List[str], threshold: float = 0.5, 
@@ -92,11 +108,20 @@ class Predictor:
                     pred_class = 0
                     confidence = probs[0].item()
                 
+                # Get standardized sentiment
+                if self.model_name:
+                    sentiment_label, sentiment_score = get_standardized_sentiment(self.model_name, pred_class)
+                else:
+                    sentiment_label = self.label_meaning.get(pred_class, f"class_{pred_class}")
+                    sentiment_score = STANDARD_LABELS.get(sentiment_label, 0)
+                
                 results.append({
                     'predicted_class': pred_class,
                     'confidence': confidence,
                     'probabilities': probs.cpu().tolist(),
-                    'text': text
+                    'text': text,
+                    'sentiment_label': sentiment_label,
+                    'sentiment_score': sentiment_score
                 })
         
         return results
@@ -121,11 +146,13 @@ class Predictor:
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the current model."""
         return {
+            'model_name': self.model_name,
             'model_type': type(self.model).__name__,
             'tokenizer_type': type(self.tokenizer).__name__,
             'device': str(self.device),
             'num_parameters': sum(p.numel() for p in self.model.parameters()),
-            'vocab_size': len(self.tokenizer.vocab) if hasattr(self.tokenizer, 'vocab') else 'Unknown'
+            'vocab_size': len(self.tokenizer.vocab) if hasattr(self.tokenizer, 'vocab') else 'Unknown',
+            'label_meaning': self.label_meaning
         }
 
 def create_predictor_from_model_name(model_name: str, model_path: str = None) -> Predictor:
@@ -135,4 +162,4 @@ def create_predictor_from_model_name(model_name: str, model_path: str = None) ->
     else:
         from models import get_model_and_tokenizer
         model, tokenizer = get_model_and_tokenizer(model_name)
-        return Predictor(model, tokenizer)
+        return Predictor(model, tokenizer, model_name=model_name)

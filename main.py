@@ -31,23 +31,23 @@ def main():
     
     # 3. Example: Test a pre-trained model
     print("\n=== Testing Pre-trained Model ===")
-    model_name = "SaBert"
+    model_name = "SaBert"  # Change to any available model
     model, tokenizer = get_model_and_tokenizer(model_name)
     
     # Create data loader and predictor
     data_loader = DataLoader(tokenizer)
-    predictor = Predictor(model, tokenizer)
+    predictor = Predictor(model, tokenizer, model_name=model_name)
     
-    # # Test single prediction
-    # test_text = "Me encanta este producto, es fantástico"
-    # result = predictor.predict_single(test_text)
-    # print(f"Text: {test_text}")
-    # print(f"Prediction: {result}")
+    # Test single prediction
+    test_text = "Esta del putas tu pelo"
+    result = predictor.predict_single(test_text, threshold=0.3)
+    print(f"Text: {test_text}")
+    print(f"Prediction: {result}")
     
-    # # 4. Example: Evaluate model
-    # print("\n=== Model Evaluation ===")
-    # evaluator = ModelEvaluator(predictor)
-    # eval_results = evaluator.evaluate_dataset(texts, labels)
+    # 4. Example: Evaluate model
+    print("\n=== Model Evaluation ===")
+    evaluator = ModelEvaluator(predictor)
+    eval_results = evaluator.evaluate_dataset(texts, labels)
     
     #5. Example: Fine-tune a model (uncomment to use)
     print("\n=== Fine-tuning Model ===")
@@ -62,7 +62,7 @@ def main():
         train_dataset, 
         eval_dataset=val_dataset,
         num_train_epochs=2,
-        model_name="moreira_finetuned"
+        model_name="SaBert_finetuned"
     )
     print(f"Fine-tuning results: {fine_tune_results}")
     

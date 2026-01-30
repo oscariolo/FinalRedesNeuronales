@@ -9,13 +9,29 @@ import pandas as pd
 class ModelEvaluator:
     """Model evaluation utilities for sentiment analysis."""
     
-    def __init__(self, predictor, label_mapping: Dict[int, str] = None):
+    def __init__(self, predictor, label_mapping: Dict[int, str] = None, use_standardized: bool = True):
         self.predictor = predictor
-        self.label_mapping = label_mapping or {0: 'negative', 1: 'positive'}
+        self.use_standardized = use_standardized
+        # Use predictor's label_meaning if available, otherwise use provided or default
+        if hasattr(predictor, 'label_meaning') and predictor.label_meaning:
+            self.label_mapping = predictor.label_meaning
+        else:
+            self.label_mapping = label_mapping or {0: 'negative', 1: 'positive'}
     
-    def evaluate_predictions(self, true_labels: List[int], predictions: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Evaluate predictions against true labels."""
-        predicted_labels = [pred['predicted_class'] for pred in predictions]
+    def evaluate_predictions(self, true_labels: List[int], predictions: List[Dict[str, Any]], 
+                              use_sentiment_score: bool = False) -> Dict[str, Any]:
+        """Evaluate predictions against true labels.
+        
+        Args:
+            true_labels: List of true label indices
+            predictions: List of prediction dictionaries
+            use_sentiment_score: If True, use standardized sentiment_score for comparison
+        """
+        if use_sentiment_score and 'sentiment_score' in predictions[0]:
+            # Use standardized sentiment scores for evaluation
+            predicted_labels = [pred['sentiment_score'] for pred in predictions]
+        else:
+            predicted_labels = [pred['predicted_class'] for pred in predictions]
         
         # Calculate metrics
         accuracy = accuracy_score(true_labels, predicted_labels)
@@ -70,10 +86,19 @@ class ModelEvaluator:
         print(f"Precision: {metrics['precision']:.4f}")
         print(f"Recall: {metrics['recall']:.4f}")
         
+        # Add sentiment distribution summary
+        if predictions and 'sentiment_label' in predictions[0]:
+            sentiment_counts = {}
+            for pred in predictions:
+                label = pred['sentiment_label']
+                sentiment_counts[label] = sentiment_counts.get(label, 0) + 1
+            print(f"Sentiment Distribution: {sentiment_counts}")
+        
         return {
             'metrics': metrics,
             'predictions': predictions,
-            'num_samples': len(texts)
+            'num_samples': len(texts),
+            'label_mapping': self.label_mapping
         }
     
     def compare_models(self, models_and_predictors: Dict[str, Any], 
