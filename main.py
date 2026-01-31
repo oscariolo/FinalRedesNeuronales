@@ -31,7 +31,7 @@ def main():
     
     # 3. Example: Test a pre-trained model
     print("\n=== Testing Pre-trained Model ===")
-    model_name = "SaBert"  # Change to any available model
+    model_name = "Tabularisai"  # Change to any available model
     model, tokenizer = get_model_and_tokenizer(model_name)
     
     # Create data loader and predictor
@@ -39,32 +39,32 @@ def main():
     predictor = Predictor(model, tokenizer, model_name=model_name)
     
     # Test single prediction
-    test_text = "Esta del putas tu pelo"
+    test_text = "Un agente ICE confirma a una vecina que le graba legalmente que la va a incluir en su base de datos como terrorista. Viva la libertad carajo!"
     result = predictor.predict_single(test_text, threshold=0.3)
     print(f"Text: {test_text}")
     print(f"Prediction: {result}")
     
-    # 4. Example: Evaluate model
-    print("\n=== Model Evaluation ===")
-    evaluator = ModelEvaluator(predictor)
-    eval_results = evaluator.evaluate_dataset(texts, labels)
+    # # 4. Example: Evaluate model
+    # print("\n=== Model Evaluation ===")
+    # evaluator = ModelEvaluator(predictor)
+    # eval_results = evaluator.evaluate_dataset(texts, labels)
     
-    #5. Example: Fine-tune a model (uncomment to use)
-    print("\n=== Fine-tuning Model ===")
+    # #5. Example: Fine-tune a model (uncomment to use)
+    # print("\n=== Fine-tuning Model ===")
     
-    # Load raw texts and labels from CSV
-    texts, labels = data_loader.load_from_csv("Data/ia_tweets.csv", "text", "polarity", sentiment_label_mapper)
-    # Create train and validation datasets
-    train_dataset, val_dataset = data_loader.create_datasets(texts, labels)
+    # # Load raw texts and labels from CSV
+    # texts, labels = data_loader.load_from_csv("Data/ia_tweets.csv", "text", "polarity", sentiment_label_mapper)
+    # # Create train and validation datasets
+    # train_dataset, val_dataset = data_loader.create_datasets(texts, labels)
     
-    fine_tuner = FineTuner(model, tokenizer)
-    fine_tune_results = fine_tuner.fine_tune(
-        train_dataset, 
-        eval_dataset=val_dataset,
-        num_train_epochs=2,
-        model_name="SaBert_finetuned"
-    )
-    print(f"Fine-tuning results: {fine_tune_results}")
+    # fine_tuner = FineTuner(model, tokenizer)
+    # fine_tune_results = fine_tuner.fine_tune(
+    #     train_dataset, 
+    #     eval_dataset=val_dataset,
+    #     num_train_epochs=2,
+    #     model_name="SaBert_finetuned"
+    # )
+    # print(f"Fine-tuning results: {fine_tune_results}")
     
 
 if __name__ == "__main__":
