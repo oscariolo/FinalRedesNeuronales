@@ -88,31 +88,47 @@ def get_model_and_tokenizer(model_name: str, num_labels: int = None) -> Tuple[An
         print(f"Loading {model_name} from cache: {cache_path}")
         try:
             if model_name in ["SaBert", "BertMultilingual"]:
-                model = config["model_class"].from_pretrained(cache_path, num_labels=labels)
+                model = config["model_class"].from_pretrained(
+                    cache_path, 
+                    num_labels=labels, 
+                    ignore_mismatched_sizes=True
+                )
                 tokenizer = config["tokenizer_class"].from_pretrained(cache_path)
             else:
-                model = AutoModelForSequenceClassification.from_pretrained(cache_path, num_labels=labels)
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    cache_path, 
+                    num_labels=labels,
+                    ignore_mismatched_sizes=True
+                )
                 tokenizer = AutoTokenizer.from_pretrained(cache_path)
+            print(f"Successfully loaded {model_name} from cache")
             return model, tokenizer
         except Exception as e:
-            print(f"Error loading from cache: {e}. Downloading fresh model...")
-            # If cache is corrupted, remove it and download fresh
-            if os.path.exists(cache_path):
-                shutil.rmtree(cache_path)
+            print(f"Error loading from cache: {e}. Will download fresh model...")
+            # Try to remove cache, but don't fail if it's in use
+            try:
+                if os.path.exists(cache_path):
+                    shutil.rmtree(cache_path)
+                    print(f"Removed corrupted cache at {cache_path}")
+            except Exception as rm_error:
+                print(f"Warning: Could not remove cache (file may be in use): {rm_error}")
+                print("Continuing with fresh download...")
     
     print(f"Downloading {model_name} and caching to: {cache_path}")
     
     try:
         model = config["model_class"].from_pretrained(
             model_hf_name, 
-            num_labels=labels
+            num_labels=labels,
+            ignore_mismatched_sizes=True
         )
         tokenizer = config["tokenizer_class"].from_pretrained(model_hf_name)
     except Exception as e:
         # Fallback to Auto classes
         model = AutoModelForSequenceClassification.from_pretrained(
             model_hf_name, 
-            num_labels=labels
+            num_labels=labels,
+            ignore_mismatched_sizes=True
         )
         tokenizer = AutoTokenizer.from_pretrained(model_hf_name)
     
