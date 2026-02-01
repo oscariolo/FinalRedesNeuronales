@@ -3,3 +3,4 @@ __pycache__
 fine_tuned_models/
 model_cache/
 Data/
+temp/

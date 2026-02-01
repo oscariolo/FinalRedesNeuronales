@@ -1,0 +1,58 @@
+const API_URL = 'http://localhost:8000';
+
+export interface Tweet{
+    id: string;
+    text: string;
+    user: {
+        id: string;
+        name: string;
+        username: string;
+    };
+    sentiment: 'positive' | 'neutral' | 'negative';
+}
+
+export async function fetchLastTweets(): Promise<Tweet[]> {
+    // For demo purposes, return empty array initially
+    // In production, you might fetch from a database endpoint
+    return Promise.resolve([]);
+}
+
+export async function postTweet(text: string): Promise<Tweet> {
+    try {
+        const response = await fetch(`${API_URL}/tweet`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                text: text,
+                user: {
+                    id: "0987654321",
+                    name: "John Doe",
+                    username: "johndoe"
+                }
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const tweet = await response.json();
+        return tweet;
+    } catch (error) {
+        console.error('Error posting tweet:', error);
+        // Fallback to simulated response if server is not available
+        return {
+            id: Date.now().toString(),
+            text: text,
+            user: {
+                id: "0987654321",
+                name: "John Doe",
+                username: "johndoe"
+            },
+            sentiment: 'neutral'
+        };
+    }
+}
+
