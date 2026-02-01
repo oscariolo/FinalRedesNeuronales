@@ -1,0 +1,41 @@
+=== Tabularisai Per-Class Metrics ===
+Negative:
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+  Support: 49
+Neutral:
+  Precision: 0.2473
+  Recall: 1.0000
+  F1-Score: 0.3966
+  Support: 23
+Positive:
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+  Support: 21
+
+
+=== Roberta Per-Class Metrics ===
+Negative:
+  Precision: 0.5269
+  Recall: 1.0000
+  F1-Score: 0.6901
+  Support: 49
+Neutral:
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+  Support: 23
+Positive:
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+  Support: 21
+
+=== SaBert Performance Metrics ===
+Accuracy: 0.7742
+F1-Score: 0.6757
+Precision: 0.5994
+Recall: 0.7742
+Sentiment Distribution: {'negative': 93}
