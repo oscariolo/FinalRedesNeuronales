@@ -3,6 +3,7 @@ from transformers import TrainingArguments, Trainer
 from typing import Any, Dict, Optional
 import os
 from datetime import datetime
+import torch.nn as nn
 
 class FineTuner:
     """Fine-tuning utilities for sentiment analysis models."""
@@ -12,6 +13,7 @@ class FineTuner:
         self.tokenizer = tokenizer
         self.output_dir = output_dir
         self.trainer = None
+        self.class_weights = None
         
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
@@ -66,6 +68,8 @@ class FineTuner:
                   eval_dataset=None,
                   training_args: TrainingArguments = None,
                   model_name: str = None,
+                  class_weights=None,
+                  num_train_epochs: int = 3,
                   **kwargs) -> Dict[str, Any]:
         """Fine-tune the model.
         
@@ -74,22 +78,57 @@ class FineTuner:
             eval_dataset: Evaluation dataset (optional)
             training_args: Custom training arguments (optional)
             model_name: Name for the fine-tuned model (optional)
+            class_weights: Weights for each class (optional)
             **kwargs: Additional arguments passed to setup_training_arguments
         """
         
         if training_args is None:
-            # Pass model_name to setup_training_arguments if provided
             if model_name is not None:
                 kwargs['model_name'] = model_name
             training_args = self.setup_training_arguments(**kwargs)
         
-        # Setup trainer
-        self.trainer = Trainer(
+        if class_weights is not None:
+            # Accept list/np array/torch tensor
+            # Ensure weights tensor matches the number of classes in the model
+            self.class_weights = torch.tensor(class_weights, dtype=torch.float)
+        else:
+            self.class_weights = None
+
+        class WeightedTrainer(Trainer):
+            def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+                labels = inputs.get("labels")
+                outputs = model(**{k: v for k, v in inputs.items() if k != "labels"})
+                logits = outputs.get("logits")
+                
+                if self.class_weights is not None:
+                    weights = self.class_weights.to(logits.device)
+                    
+                    # Pad weights if model has more classes than training labels
+                    num_model_classes = logits.shape[-1]
+                    num_weight_classes = weights.shape[0]
+                    
+                    if num_weight_classes < num_model_classes:
+                        # Pad with 1.0 for unused classes
+                        padding = torch.ones(num_model_classes - num_weight_classes, device=logits.device)
+                        weights = torch.cat([weights, padding])
+                    
+                    loss_fct = nn.CrossEntropyLoss(weight=weights)
+                else:
+                    loss_fct = nn.CrossEntropyLoss()
+                
+                loss = loss_fct(logits, labels)
+                return (loss, outputs) if return_outputs else loss
+
+        trainer_class = WeightedTrainer if self.class_weights is not None else Trainer
+
+        self.trainer = trainer_class(
             model=self.model,
             args=training_args,
             train_dataset=train_dataset,
-            eval_dataset=eval_dataset,
+            eval_dataset=eval_dataset
         )
+        if self.class_weights is not None:
+            self.trainer.class_weights = self.class_weights
         
         # Train the model
         print(f"Starting fine-tuning with {len(train_dataset)} training samples...")

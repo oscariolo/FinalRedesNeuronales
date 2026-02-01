@@ -386,15 +386,21 @@ class ModelEvaluator:
         """Plot ROC curve for multiclass classification."""
         print("Generating ROC curves...")
         
+        # Convert to numpy arrays for safety
         true_labels = np.array(true_labels)
+        
         # Get prediction probabilities
         y_proba = self.get_prediction_probabilities(texts)
         
-        # Get class names from label mapping
-        n_classes = len(self.label_mapping)
-        class_names = [self.label_mapping.get(i, f'Class {i}') for i in range(n_classes)]
+        # Get actual number of classes from predictions and true labels
+        n_classes_pred = y_proba.shape[1]  # From model predictions
+        n_classes_true = len(np.unique(true_labels))  # From actual labels
+        n_classes = max(n_classes_pred, n_classes_true)
         
-        # Binarize the output
+        # Get class names - only use as many as we actually have
+        class_names = [self.label_mapping.get(i, f'Class {i}') for i in range(n_classes_pred)]
+        
+        # Binarize the output using actual number of classes in true labels
         y_true_binary = label_binarize(true_labels, classes=list(range(n_classes)))
         
         # Handle binary case
@@ -408,8 +414,9 @@ class ModelEvaluator:
         roc_auc = dict()
         
         for i in range(n_classes):
-            fpr[i], tpr[i], _ = roc_curve(y_true_binary[:, i], y_proba[:, i])
-            roc_auc[i] = auc(fpr[i], tpr[i])
+            if i < y_true_binary.shape[1]:  # Only compute for classes that exist in data
+                fpr[i], tpr[i], _ = roc_curve(y_true_binary[:, i], y_proba[:, i])
+                roc_auc[i] = auc(fpr[i], tpr[i])
         
         # Compute micro-average ROC curve and ROC area
         fpr["micro"], tpr["micro"], _ = roc_curve(y_true_binary.ravel(), y_proba.ravel())
@@ -448,11 +455,13 @@ class ModelEvaluator:
                 plt.ylim([0.0, 1.05])
                 plt.xlabel('False Positive Rate')
                 plt.ylabel('True Positive Rate')
-                plt.title(f'{class_names[i]} (AUC = {roc_auc[i]:.2f})')
+                class_label = class_names[i] if i < len(class_names) else f'Class {i}'
+                plt.title(f'{class_label} (AUC = {roc_auc[i]:.2f})')
                 plt.grid(True, alpha=0.3)
         else:
             # Binary classification - single ROC curve
-            plt.plot(fpr[1], tpr[1], color='darkorange', linewidth=2,
+            if 1 in roc_auc:
+                plt.plot(fpr[1], tpr[1], color='darkorange', linewidth=2,
                      label=f'ROC curve (AUC = {roc_auc[1]:.2f})')
             plt.plot([0, 1], [0, 1], 'k--', linewidth=2)
             plt.xlim([0.0, 1.0])
@@ -481,7 +490,9 @@ class ModelEvaluator:
         # Print AUC scores
         print("\n=== AUC Scores ===")
         for i in range(n_classes):
-            print(f"{class_names[i]}: {roc_auc[i]:.4f}")
+            if i in roc_auc:
+                class_label = class_names[i] if i < len(class_names) else f'Class {i}'
+                print(f"{class_label}: {roc_auc[i]:.4f}")
         if n_classes > 2:
             print(f"Micro-average: {roc_auc['micro']:.4f}")
         

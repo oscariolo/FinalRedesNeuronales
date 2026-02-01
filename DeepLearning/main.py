@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 from datetime import datetime
 from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
 
 # Define label mapping function for sentiment analysis
 def sentiment_label_mapper(label):
@@ -261,13 +262,24 @@ def main():
             print(f"   Skipping {model_name}\n")
             continue
         
+        # Compute class weights from training labels
+        train_labels = train_dataset.labels
+        classes = np.array(sorted(set(train_labels)))
+        class_weights = compute_class_weight(
+            class_weight="balanced",
+            classes=classes,
+            y=train_labels
+        )
+        print(f"Class weights for {model_name}: {dict(zip(classes, class_weights))}")
+
         # Fine-tune the model
         fine_tuner = FineTuner(model, tokenizer)
         fine_tune_results = fine_tuner.fine_tune(
             train_dataset, 
             eval_dataset=val_dataset,
-            num_train_epochs=3,
-            model_name=f"{model_name}_finetuned"
+            num_train_epochs=10,
+            model_name=f"{model_name}_finetuned",
+            class_weights=class_weights
         )
         print(f"Output directory: {fine_tuner.output_dir}")
         
@@ -300,9 +312,9 @@ def main():
         
         # Determine if normalization needed
         # For SaBert: we trained with 2-class labels, so no normalization needed
-        # For Tabularisai: trained with 5-class labels, need to normalize to 3-class
+        # For Tabularisai: KEEP 5-class for evaluation - don't normalize!
         # For Roberta: trained with 3-class labels, no normalization needed
-        should_normalize = model_name == "Tabularisai"
+        should_normalize = False  # CHANGED: Never normalize
         
         if should_normalize:
             print(f"Applying label normalization for {model_name}")
