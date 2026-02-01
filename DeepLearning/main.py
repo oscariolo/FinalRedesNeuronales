@@ -228,7 +228,7 @@ def main():
     # # IMPORTANT: For 3-class classification (-1, 0, 1), use Roberta or Tabularisai
     # # SaBert only supports binary classification (2 classes)
     
-    models_to_finetune = ["Roberta", "Tabularisai"]
+    models_to_finetune = ["SaBert"]
     
     for model_name in models_to_finetune:
         print(f"\n--- Fine-tuning {model_name} ---")
