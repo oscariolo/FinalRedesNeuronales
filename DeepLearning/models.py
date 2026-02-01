@@ -18,27 +18,27 @@ STANDARD_LABELS = {
 }
 
 MODEL_CONFIGS = {
-    # "SaBert": {
-    #     "model_name": "VerificadoProfesional/SaBERT-Spanish-Sentiment-Analysis",
-    #     "model_class": BertForSequenceClassification,
-    #     "tokenizer_class": BertTokenizer,
-    #     "num_labels": 2,
-    #     "label_meaning": {
-    #         0: "negative",
-    #         1: "positive"
-    #     }
-    # },
-    # "Roberta": {
-    #     "model_name": "cardiffnlp/twitter-xlm-roberta-base-sentiment",
-    #     "model_class": RobertaForSequenceClassification,
-    #     "tokenizer_class": RobertaTokenizer,
-    #     "num_labels": 3,
-    #     "label_meaning": {
-    #         0: "negative",
-    #         1: "neutral",
-    #         2: "positive"
-    #     }
-    # },
+    "SaBert": {
+        "model_name": "VerificadoProfesional/SaBERT-Spanish-Sentiment-Analysis",
+        "model_class": BertForSequenceClassification,
+        "tokenizer_class": BertTokenizer,
+        "num_labels": 2,
+        "label_meaning": {
+            0: "negative",
+            1: "positive"
+        }
+    },
+    "Roberta": {
+        "model_name": "cardiffnlp/twitter-xlm-roberta-base-sentiment",
+        "model_class": RobertaForSequenceClassification,
+        "tokenizer_class": RobertaTokenizer,
+        "num_labels": 3,
+        "label_meaning": {
+            0: "negative",
+            1: "neutral",
+            2: "positive"
+        }
+    },
     "Tabularisai": {
         "model_name": "tabularisai/multilingual-sentiment-analysis",
         "model_class": AutoModelForSequenceClassification,

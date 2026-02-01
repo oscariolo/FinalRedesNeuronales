@@ -17,9 +17,25 @@ export async function fetchLastTweets(): Promise<Tweet[]> {
     return Promise.resolve([]);
 }
 
-export async function postTweet(text: string): Promise<Tweet> {
+export async function getModels(): Promise<string[]> {
     try {
-        const response = await fetch(`${API_URL}/tweet`, {
+        const response = await fetch(`${API_URL}/models`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log('Fetched models:', data);
+        return data.models;
+    } catch (error) {
+        console.error('Error fetching models:', error);
+        return [];
+    }
+}
+
+
+export async function postTweet(text: string, model: string): Promise<Tweet> {
+    try {
+        const response = await fetch(`${API_URL}/tweet/${model}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

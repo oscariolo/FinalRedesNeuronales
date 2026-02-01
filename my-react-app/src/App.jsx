@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-import { fetchLastTweets, postTweet } from './services/twitterServices'
+import { fetchLastTweets, getModels, postTweet } from './services/twitterServices'
 import TweetComponent from './components/TweetComponent'
 import TweetSlider from './components/TweetSlider'
 
@@ -8,23 +8,35 @@ function App(){
   const [tweets, setTweets] = useState([])
   const [newTweet, setNewTweet] = useState('')
   const [isPosting, setIsPosting] = useState(false)
-  
+  const [models, setModels] = useState([])
+  const [selectedModel, setSelectedModel] = useState('')
+
   useEffect(() => {
-    const loadTweets = async () => {
-      const data = await fetchLastTweets()
-      setTweets(data)
+    const loadModels = async () => {
+      const data = await getModels()
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.available_models)
+          ? data.available_models
+          : Array.isArray(data?.models)
+            ? data.models
+            : []
+      setModels(list)
+      if (list.length > 0) {
+        setSelectedModel(list[0])
+      }
     }
-    loadTweets()
+    loadModels()
   }, [])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
     const text = newTweet.trim()
-    if (!text) return
+    if (!text || !selectedModel) return
 
     setIsPosting(true)
     try {
-      const created = await postTweet(text)
+      const created = await postTweet(text, selectedModel)
       setTweets((prev) => [created, ...prev])
       setNewTweet('')
     } finally {
@@ -46,9 +58,18 @@ function App(){
           />
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span>{newTweet.trim().length} / 280</span>
+            <select
+              className="rounded border border-slate-800 bg-slate-950 p-1 text-slate-100"
+              value={selectedModel}
+              onChange={(event) => setSelectedModel(event.target.value)}
+            >
+              {models.map((model) => (
+                <option key={model} value={model}>{model}</option>
+              ))}
+            </select>
             <button
               type="submit"
-              disabled={isPosting || newTweet.trim().length === 0}
+              disabled={isPosting || newTweet.trim().length === 0 || !selectedModel}
               className="rounded-full text-amber-50 bg-cyan-500 px-4 py-2 text-sm font-semiboldtransition disabled:cursor-not-allowed disabled:bg-slate-700"
             >
               {isPosting ? 'Posting...' : 'Tweet'}

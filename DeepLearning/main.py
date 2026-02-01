@@ -277,7 +277,7 @@ def main():
         fine_tune_results = fine_tuner.fine_tune(
             train_dataset, 
             eval_dataset=val_dataset,
-            num_train_epochs=10,
+            num_train_epochs=3,
             model_name=f"{model_name}_finetuned",
             class_weights=class_weights
         )

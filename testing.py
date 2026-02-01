@@ -4,10 +4,10 @@
 from transformers import pipeline
 
 # Load the classification pipeline with the specified model
-pipe = pipeline("text-classification", model="tabularisai/multilingual-sentiment-analysis")
+pipe = pipeline("text-classification", model="DeepLearning/fine_tuned_models/Roberta_finetuned_20260201_181547")
 
 # Classify a new sentence
-sentence = "Esta del putas tu pelo"
+sentence = "Este es un gran día para aprender sobre redes neuronales."
 result = pipe(sentence)
 
 # Print the result
