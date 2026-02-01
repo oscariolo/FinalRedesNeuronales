@@ -1,10 +1,14 @@
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix, classification_report
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix, classification_report, roc_curve, auc
+from sklearn.preprocessing import label_binarize
 from typing import List, Dict, Any, Tuple
 import matplotlib.pyplot as plt
 import seaborn as sns
 from data_loader import DataLoader as SentimentDataLoader
 import pandas as pd
+import torch
+from datetime import datetime
+import os
 
 class ModelEvaluator:
     """Model evaluation utilities for sentiment analysis."""
@@ -218,3 +222,273 @@ class ModelEvaluator:
             print(f"Evaluation report saved to: {save_path}")
         
         return report
+    
+    def get_prediction_probabilities(self, texts: List[str], batch_size: int = 32) -> np.ndarray:
+        """Get prediction probabilities for ROC curve calculation."""
+        all_probabilities = []
+        
+        # Use the model directly for probabilities
+        device = next(self.predictor.model.parameters()).device
+        self.predictor.model.eval()
+        
+        with torch.no_grad():
+            for i in range(0, len(texts), batch_size):
+                batch_texts = texts[i:i+batch_size]
+                
+                # Tokenize batch
+                inputs = self.predictor.tokenizer(
+                    batch_texts,
+                    return_tensors="pt",
+                    truncation=True,
+                    padding=True,
+                    max_length=128
+                )
+                
+                # Move to device
+                inputs = {key: value.to(device) for key, value in inputs.items()}
+                
+                # Get predictions
+                outputs = self.predictor.model(**inputs)
+                probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
+                all_probabilities.extend(probabilities.cpu().numpy())
+        
+        return np.array(all_probabilities)
+    
+    def plot_roc_curve(self, true_labels: List[int], texts: List[str], 
+                      title: str = "ROC Curve", figsize: Tuple[int, int] = (12, 8),
+                      save_path: str = None) -> Dict[str, float]:
+        """Plot ROC curve for multiclass classification."""
+        try:
+            # Get probabilities
+            y_proba = self.get_prediction_probabilities(texts)
+            
+            # Get unique classes and class names
+            unique_classes = sorted(set(true_labels))
+            n_classes = len(unique_classes)
+            class_names = [self.label_mapping.get(i, f'Class {i}') for i in unique_classes]
+            
+            if n_classes == 2:
+                # Binary classification
+                fpr, tpr, _ = roc_curve(true_labels, y_proba[:, 1])
+                roc_auc = auc(fpr, tpr)
+                
+                plt.figure(figsize=(8, 6))
+                plt.plot(fpr, tpr, color='darkorange', linewidth=2,
+                        label=f'ROC curve (AUC = {roc_auc:.2f})')
+                plt.plot([0, 1], [0, 1], color='navy', linewidth=2, linestyle='--')
+                plt.xlim([0.0, 1.0])
+                plt.ylim([0.0, 1.05])
+                plt.xlabel('False Positive Rate')
+                plt.ylabel('True Positive Rate')
+                plt.title(title)
+                plt.legend(loc="lower right")
+                plt.grid(True, alpha=0.3)
+                
+                roc_auc_scores = {'overall': roc_auc}
+            else:
+                # Multiclass classification
+                # Binarize the output
+                y_true_binary = label_binarize(true_labels, classes=unique_classes)
+                
+                # Compute ROC curve and ROC area for each class
+                fpr = dict()
+                tpr = dict()
+                roc_auc = dict()
+                
+                for i in range(n_classes):
+                    fpr[i], tpr[i], _ = roc_curve(y_true_binary[:, i], y_proba[:, i])
+                    roc_auc[i] = auc(fpr[i], tpr[i])
+                
+                # Compute micro-average ROC curve and ROC area
+                fpr["micro"], tpr["micro"], _ = roc_curve(y_true_binary.ravel(), y_proba.ravel())
+                roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+                
+                # Plot ROC curves
+                plt.figure(figsize=figsize)
+                
+                # Plot micro-average ROC curve
+                plt.subplot(2, 2, 1)
+                plt.plot(fpr["micro"], tpr["micro"],
+                        label=f'Micro-average (AUC = {roc_auc["micro"]:.2f})',
+                        color='deeppink', linestyle=':', linewidth=4)
+                
+                # Plot ROC curves for each class
+                colors = ['aqua', 'darkorange', 'cornflowerblue', 'green', 'red']
+                for i, color in enumerate(colors[:n_classes]):
+                    plt.plot(fpr[i], tpr[i], color=color, linewidth=2,
+                            label=f'{class_names[i]} (AUC = {roc_auc[i]:.2f})')
+                
+                plt.plot([0, 1], [0, 1], 'k--', linewidth=2)
+                plt.xlim([0.0, 1.0])
+                plt.ylim([0.0, 1.05])
+                plt.xlabel('False Positive Rate')
+                plt.ylabel('True Positive Rate')
+                plt.title(f'ROC Curves - {title}')
+                plt.legend(loc="lower right")
+                plt.grid(True, alpha=0.3)
+                
+                # Plot individual class ROC curves
+                for i in range(min(n_classes, 3)):  # Limit to 3 subplots
+                    plt.subplot(2, 2, i+2)
+                    plt.plot(fpr[i], tpr[i], color=colors[i % len(colors)], linewidth=2)
+                    plt.plot([0, 1], [0, 1], 'k--', linewidth=2)
+                    plt.xlim([0.0, 1.0])
+                    plt.ylim([0.0, 1.05])
+                    plt.xlabel('False Positive Rate')
+                    plt.ylabel('True Positive Rate')
+                    plt.title(f'{class_names[i]} (AUC = {roc_auc[i]:.2f})')
+                    plt.grid(True, alpha=0.3)
+                
+                roc_auc_scores = roc_auc.copy()
+            
+            plt.tight_layout()
+            
+            # Save the plot if path provided
+            if save_path:
+                plt.savefig(save_path, dpi=300, bbox_inches='tight')
+                print(f"ROC curve saved as: {save_path}")
+            
+            plt.show()
+            
+            return roc_auc_scores
+            
+        except Exception as e:
+            print(f"Error generating ROC curve: {e}")
+            return {}
+    
+    def plot_roc_curve_multiclass(self, true_labels: List[int], texts: List[str], 
+                                 title: str = "ROC Curves", figsize: Tuple[int, int] = (12, 8),
+                                 save_path: str = None) -> Dict[str, float]:
+        """Plot ROC curve for multiclass classification."""
+        print("Generating ROC curves...")
+        
+        # Get prediction probabilities
+        y_proba = self.get_prediction_probabilities(texts)
+        
+        # Get class names from label mapping
+        n_classes = len(self.label_mapping)
+        class_names = [self.label_mapping.get(i, f'Class {i}') for i in range(n_classes)]
+        
+        # Binarize the output
+        y_true_binary = label_binarize(true_labels, classes=list(range(n_classes)))
+        
+        # Handle binary case
+        if n_classes == 2:
+            y_true_binary = np.column_stack([1 - true_labels, true_labels])
+            y_proba = np.column_stack([1 - y_proba[:, 1], y_proba[:, 1]])
+        
+        # Compute ROC curve and ROC area for each class
+        fpr = dict()
+        tpr = dict()
+        roc_auc = dict()
+        
+        for i in range(n_classes):
+            fpr[i], tpr[i], _ = roc_curve(y_true_binary[:, i], y_proba[:, i])
+            roc_auc[i] = auc(fpr[i], tpr[i])
+        
+        # Compute micro-average ROC curve and ROC area
+        fpr["micro"], tpr["micro"], _ = roc_curve(y_true_binary.ravel(), y_proba.ravel())
+        roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+        
+        # Plot ROC curves
+        plt.figure(figsize=figsize)
+        
+        if n_classes > 2:
+            # Plot micro-average ROC curve
+            plt.subplot(2, 2, 1)
+            plt.plot(fpr["micro"], tpr["micro"],
+                     label=f'Micro-average ROC curve (AUC = {roc_auc["micro"]:.2f})',
+                     color='deeppink', linestyle=':', linewidth=4)
+            
+            # Plot ROC curves for each class
+            colors = ['aqua', 'darkorange', 'cornflowerblue', 'green', 'red']
+            for i, color in enumerate(colors[:n_classes]):
+                plt.plot(fpr[i], tpr[i], color=color, linewidth=2,
+                         label=f'{class_names[i]} (AUC = {roc_auc[i]:.2f})')
+            
+            plt.plot([0, 1], [0, 1], 'k--', linewidth=2)
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title(f'ROC Curves - {title}')
+            plt.legend(loc="lower right")
+            
+            # Plot individual class ROC curves
+            for i in range(min(n_classes, 3)):  # Max 3 individual plots
+                plt.subplot(2, 2, i+2)
+                plt.plot(fpr[i], tpr[i], color=colors[i % len(colors)], linewidth=2)
+                plt.plot([0, 1], [0, 1], 'k--', linewidth=2)
+                plt.xlim([0.0, 1.0])
+                plt.ylim([0.0, 1.05])
+                plt.xlabel('False Positive Rate')
+                plt.ylabel('True Positive Rate')
+                plt.title(f'{class_names[i]} (AUC = {roc_auc[i]:.2f})')
+                plt.grid(True, alpha=0.3)
+        else:
+            # Binary classification - single ROC curve
+            plt.plot(fpr[1], tpr[1], color='darkorange', linewidth=2,
+                     label=f'ROC curve (AUC = {roc_auc[1]:.2f})')
+            plt.plot([0, 1], [0, 1], 'k--', linewidth=2)
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title(f'ROC Curve - {title}')
+            plt.legend(loc="lower right")
+            plt.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        # Save the plot if path provided
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"ROC curve saved as: {save_path}")
+        else:
+            # Auto-generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"roc_curve_{timestamp}.png"
+            plt.savefig(filename, dpi=300, bbox_inches='tight')
+            print(f"ROC curve saved as: {filename}")
+        
+        plt.show()
+        
+        # Print AUC scores
+        print("\n=== AUC Scores ===")
+        for i in range(n_classes):
+            print(f"{class_names[i]}: {roc_auc[i]:.4f}")
+        if n_classes > 2:
+            print(f"Micro-average: {roc_auc['micro']:.4f}")
+        
+        return roc_auc
+    
+    def get_prediction_probabilities(self, texts: List[str], batch_size: int = 32) -> np.ndarray:
+        """Get prediction probabilities for ROC curve calculation."""
+        all_probabilities = []
+        
+        # Use the model directly for probabilities
+        device = next(self.predictor.model.parameters()).device
+        self.predictor.model.eval()
+        
+        with torch.no_grad():
+            for i in range(0, len(texts), batch_size):
+                batch_texts = texts[i:i+batch_size]
+                
+                # Tokenize batch
+                inputs = self.predictor.tokenizer(
+                    batch_texts,
+                    return_tensors="pt",
+                    truncation=True,
+                    padding=True,
+                    max_length=128
+                )
+                
+                # Move to device
+                inputs = {key: value.to(device) for key, value in inputs.items()}
+                
+                # Get predictions
+                outputs = self.predictor.model(**inputs)
+                probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
+                all_probabilities.extend(probabilities.cpu().numpy())
+        
+        return np.array(all_probabilities)
