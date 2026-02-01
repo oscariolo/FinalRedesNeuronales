@@ -175,3 +175,83 @@ def get_standardized_sentiment(model_name: str, predicted_class: int) -> Tuple[s
     sentiment_label = label_meaning.get(predicted_class, "unknown")
     sentiment_score = STANDARD_LABELS.get(sentiment_label, 0)
     return sentiment_label, sentiment_score
+
+def normalize_prediction_to_3class(predicted_class: int, model_name: str) -> int:
+    """Normalize a model's prediction to standardized 3-class format.
+    
+    Maps all model predictions to: 0=negative, 1=neutral, 2=positive
+    
+    Args:
+        predicted_class: The model's predicted class index
+        model_name: Name of the model ('SaBert', 'Roberta', 'Tabularisai')
+    
+    Returns:
+        Normalized class in 3-class format (0, 1, or 2)
+    
+    Examples:
+        SaBert 0 (negative) -> 0 (negative)
+        SaBert 1 (positive) -> 2 (positive)
+        Roberta 0 (negative) -> 0 (negative)
+        Roberta 1 (neutral) -> 1 (neutral)
+        Roberta 2 (positive) -> 2 (positive)
+        Tabularisai 0 (very_negative) -> 0 (negative)
+        Tabularisai 1 (negative) -> 0 (negative)
+        Tabularisai 2 (neutral) -> 1 (neutral)
+        Tabularisai 3 (positive) -> 2 (positive)
+        Tabularisai 4 (very_positive) -> 2 (positive)
+    """
+    if model_name == "SaBert":
+        # SaBert: 2 classes -> 3 classes
+        # 0: negative -> 0, 1: positive -> 2
+        return 0 if predicted_class == 0 else 2
+    
+    elif model_name == "Roberta":
+        # Roberta: already 3 classes -> pass through
+        # 0: negative -> 0, 1: neutral -> 1, 2: positive -> 2
+        return predicted_class
+    
+    elif model_name == "Tabularisai":
+        # Tabularisai: 5 classes -> 3 classes
+        # 0,1: negative -> 0, 2: neutral -> 1, 3,4: positive -> 2
+        if predicted_class in [0, 1]:
+            return 0  # negative (very_negative or negative)
+        elif predicted_class == 2:
+            return 1  # neutral
+        else:  # 3, 4
+            return 2  # positive (positive or very_positive)
+    
+    else:
+        raise ValueError(f"Unknown model: {model_name}")
+
+
+def normalize_label_to_3class(true_label: int, source_num_classes: int = None) -> int:
+    """Normalize a true label to standardized 3-class format.
+    
+    Maps labels to: 0=negative, 1=neutral, 2=positive
+    
+    Args:
+        true_label: The original label
+        source_num_classes: Optional hint about source format (2, 3, or 5 classes)
+    
+    Returns:
+        Normalized class in 3-class format (0, 1, or 2)
+    """
+    # If label is already in standard format (0, 1, 2), pass through
+    if source_num_classes == 3 or true_label in [0, 1, 2]:
+        return true_label
+    
+    # Handle 2-class format (SaBert-like)
+    if source_num_classes == 2:
+        return 0 if true_label == 0 else 2
+    
+    # Handle 5-class format (Tabularisai-like)
+    if source_num_classes == 5:
+        if true_label in [0, 1]:
+            return 0
+        elif true_label == 2:
+            return 1
+        else:  # 3, 4
+            return 2
+    
+    # Default behavior: assume 3-class format
+    return true_label

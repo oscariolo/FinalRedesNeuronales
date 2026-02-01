@@ -9,6 +9,7 @@ import pandas as pd
 import torch
 from datetime import datetime
 import os
+from models import normalize_prediction_to_3class, normalize_label_to_3class
 
 class ModelEvaluator:
     """Model evaluation utilities for sentiment analysis."""
@@ -23,19 +24,29 @@ class ModelEvaluator:
             self.label_mapping = label_mapping or {0: 'negative', 1: 'positive'}
     
     def evaluate_predictions(self, true_labels: List[int], predictions: List[Dict[str, Any]], 
-                              use_sentiment_score: bool = False) -> Dict[str, Any]:
+                              use_sentiment_score: bool = False, normalize_labels: bool = False,
+                              model_name: str = None) -> Dict[str, Any]:
         """Evaluate predictions against true labels.
         
         Args:
             true_labels: List of true label indices
             predictions: List of prediction dictionaries
             use_sentiment_score: If True, use standardized sentiment_score for comparison
+            normalize_labels: If True, normalize model outputs to 3-class format
+            model_name: Name of the model (required if normalize_labels=True)
         """
         if use_sentiment_score and 'sentiment_score' in predictions[0]:
             # Use standardized sentiment scores for evaluation
             predicted_labels = [pred['sentiment_score'] for pred in predictions]
         else:
             predicted_labels = [pred['predicted_class'] for pred in predictions]
+        
+        # Normalize labels if cross-model evaluation
+        if normalize_labels and model_name:
+            predicted_labels = [normalize_prediction_to_3class(pred, model_name) 
+                               for pred in predicted_labels]
+            true_labels = [normalize_label_to_3class(label, source_num_classes=3) 
+                        for label in true_labels]
         
         # Calculate metrics
         accuracy = accuracy_score(true_labels, predicted_labels)
@@ -73,8 +84,17 @@ class ModelEvaluator:
         }
     
     def evaluate_dataset(self, texts: List[str], true_labels: List[int], 
-                        threshold: float = 0.5, batch_size: int = 32) -> Dict[str, Any]:
-        """Evaluate model on a dataset."""
+                        threshold: float = 0.5, batch_size: int = 32,
+                        normalize_labels: bool = False) -> Dict[str, Any]:
+        """Evaluate model on a dataset.
+        
+        Args:
+            texts: List of input texts
+            true_labels: List of true labels
+            threshold: Classification threshold
+            batch_size: Batch size for prediction
+            normalize_labels: If True, normalize to 3-class format for cross-model comparison
+        """
         print(f"Evaluating model on {len(texts)} samples...")
         
         # Get predictions
@@ -82,8 +102,12 @@ class ModelEvaluator:
             texts, threshold=threshold, batch_size=batch_size
         )
         
-        # Calculate metrics
-        metrics = self.evaluate_predictions(true_labels, predictions)
+        # Calculate metrics with optional normalization
+        metrics = self.evaluate_predictions(
+            true_labels, predictions, 
+            normalize_labels=normalize_labels,
+            model_name=self.predictor.model_name
+        )
         
         print(f"Accuracy: {metrics['accuracy']:.4f}")
         print(f"F1-Score: {metrics['f1_score']:.4f}")

@@ -1,6 +1,6 @@
 
 
-from models import get_model_and_tokenizer, get_available_models, load_fine_tuned_model
+from models import MODEL_CONFIGS, get_model_and_tokenizer, get_available_models, load_fine_tuned_model
 from data_loader import DataLoader, create_sample_data
 from fine_tuner import FineTuner
 from predictor import Predictor, create_predictor_from_model_name
@@ -228,13 +228,12 @@ def main():
     # # IMPORTANT: For 3-class classification (-1, 0, 1), use Roberta or Tabularisai
     # # SaBert only supports binary classification (2 classes)
     
-    models_to_finetune = ["SaBert"]
     
-    for model_name in models_to_finetune:
+    for model_name in MODEL_CONFIGS.keys():
         print(f"\n--- Fine-tuning {model_name} ---")
         
-        # Load model suitable for 3-class classification
-        model, tokenizer = get_model_and_tokenizer(model_name, num_labels=3)
+        # Load model suitable for n-class classification
+        model, tokenizer = get_model_and_tokenizer(model_name, num_labels=MODEL_CONFIGS[model_name]['num_labels'])
         
         # Recreate data_loader with new tokenizer
         data_loader = DataLoader(tokenizer, test_size=0.2, random_state=42)
@@ -267,17 +266,9 @@ def main():
         # Comprehensive evaluation
         print(f"\n=== Evaluating {model_name} Fine-tuned Model ===")
         evaluator = ModelEvaluator(eval_predictor)
-        
-        # Split data for evaluation
-        from sklearn.model_selection import train_test_split
-        _, test_texts, _, test_labels = train_test_split(
-            texts, labels, test_size=0.3, random_state=42, stratify=labels
-        )
-        
-        print(f"Using {len(test_texts)} samples for evaluation")
-        
+             
         # Evaluate the model
-        eval_results = evaluator.evaluate_dataset(test_texts, test_labels, batch_size=16)
+        eval_results = evaluator.evaluate_dataset(val_dataset.texts, val_dataset.labels, batch_size=16, normalize_labels=True)
         metrics = eval_results['metrics']
         
         # Print detailed metrics
@@ -304,7 +295,7 @@ def main():
         roc_filename = f"roc_curve_{model_name}_finetuned_{timestamp}.png"
         try:
             roc_auc_scores = evaluator.plot_roc_curve(
-                test_labels, test_texts, 
+                val_dataset.labels, val_dataset.texts, 
                 title=f"{model_name} Fine-tuned Model",
                 save_path=roc_filename
             )
@@ -317,7 +308,7 @@ def main():
         # Plot confusion matrix
         try:
             evaluator.plot_confusion_matrix(
-                test_labels, eval_results['predictions'], 
+                val_dataset.labels, eval_results['predictions'], 
                 title=f"Confusion Matrix - {model_name} Fine-tuned"
             )
         except Exception as e:
