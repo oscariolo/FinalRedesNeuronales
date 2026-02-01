@@ -386,6 +386,7 @@ class ModelEvaluator:
         """Plot ROC curve for multiclass classification."""
         print("Generating ROC curves...")
         
+        true_labels = np.array(true_labels)
         # Get prediction probabilities
         y_proba = self.get_prediction_probabilities(texts)
         

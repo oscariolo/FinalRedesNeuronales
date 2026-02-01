@@ -39,7 +39,7 @@ class SentimentDataset(Dataset):
 class DataLoader:
     """Data loading and preprocessing utilities."""
     
-    def __init__(self, tokenizer, max_length: int = 128, test_size: float = 0.2, random_state: int = 42):
+    def __init__(self, tokenizer=None, max_length: int = 128, test_size: float = 0.2, random_state: int = 42):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.test_size = test_size
